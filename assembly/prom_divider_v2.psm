@@ -1,0 +1,61 @@
+  ; KCPSM6 Program
+                   ;Author         - Vikram & Chethan
+				   ;revised in Fall 2020  - Gandhi 10/3/2020
+                   ;File		   - prom_divider_v2.psm 
+;**************************************************************************************
+;Port definitions
+;**************************************************************************************
+                   CONSTANT Dividend,   00    ;port00 used for loading info of Dividend and Divisor
+				   CONSTANT Divisor,		02	  ;
+                   CONSTANT Quotient, 00	  ;port00 used for outputting Quotient and Remainder to LEDs
+				   CONSTANT Remainder, 02 ; 
+				   CONSTANT Control_signal,     01	  ;port01 used for loading info of Start and ACK signals
+				   CONSTANT Current_State,      01	  ;port01 used for outputting current state info (Done (QD), Compute (QC), Initial (QI), and Done) to LEDs
+;**************************************************************************************
+; Special Register usage
+;**************************************************************************************
+  				  ;NAMEREG Not used here
+;**************************************************************************************
+;MAIN PROGRAM
+;**************************************************************************************
+				   ;Control Signal Format in s4 {6'b000000, Start, Ack}
+		   
+	state_initial: OUTPUTK 00000010'b, Current_State 	; Indicating Current State as Initial State (QI)
+				   INPUT s0, Dividend					; Register s0 holds Dividend		
+				   INPUT s1, Divisor					; Register s1 holds Divisor
+				   LOAD s9,00							; Quotient Counter
+				   OUTPUT s9, Quotient					; Sending out initial Quotient and Remainder (Dividend(X)) to fabric logic
+				   OUTPUT s0, Remainder ;
+				   INPUT s4, Control_signal				; Load the Control Signal Information into register s4
+				   AND s4, 00000010'b					; Check to see if Start Control Signal is set using 00000010'b Mask
+				   JUMP Z, state_initial		 		; Jump back to state_initial		   				   
+				   JUMP state_compute					; Jump to Compute State if Start is pressed with s2 holding Divident and s0 holding Divisor
+
+;***************************************************************************************
+;Compute State (Divider Sequence)
+;****************************************************************************************					
+	state_compute: OUTPUTK 00000100'b, Current_State  	; Indicating Current State as Compute State	(QC)
+				   OUTPUT s9, Quotient				; Sending out Quotient  to fabric logic //debug
+				   OUTPUT s0, Remainder 		;  Sending out Remainder to fabric logic
+				   COMPARE s0, s1						; Compare Dividend and Divisor to check if Dividend is smaller than Divisor
+				   JUMP C, state_done					; If Dividend is smaller, jump to Done State (QD) // check flag
+				   SUB s0, s1							; Subtract Divisor from Dividend //first source & dest, being subtracted
+				   ADD s9, 01							; Increment Quotient after each repetitive Subtraction by adding 0000_0001
+				   JUMP state_compute					; If Dividend is not smaller, stay in Compute State (QC)
+;****************************************************************************************
+;Done State
+;****************************************************************************************
+	state_done:	   OUTPUTK 00001001'b, Current_State	; Indicating Current State as Done State and also the Done signal (QD, Done)	   
+				   OUTPUT s9, Quotient					; 
+				   OUTPUT s0, Remainder					; 
+				   INPUT s4, Control_signal				; Load the Control Signal Information into register s4
+				   COMPARE s4, 00000001'b				; Check to see if ACK is received
+				   JUMP Z, state_initial				; Jump to state_initial if ACK is received
+				   JUMP state_done						; Stay in Done State till ACK comes
+;**************************************************************************************
+;Interrupt Vector
+;**************************************************************************************
+                   ;Not used here
+                   ;ADDRESS 3FF
+			
+                      

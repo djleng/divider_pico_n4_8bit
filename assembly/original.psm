@@ -1,0 +1,63 @@
+  ; KCPSM6 Program
+                   ;Author         - Vikram & Chethan
+				   ;revised in Fall 2020  - Gandhi 10/3/2020
+                   ;File		   - prom_divider_v2.psm 
+;**************************************************************************************
+;Port definitions
+;**************************************************************************************
+                   CONSTANT Dividend_Divisor,   00    ;port00 used for loading info of Dividend and Divisor
+                   CONSTANT Control_signal,     01	  ;port01 used for loading info of Start and ACK signals
+                   CONSTANT Quotient_Remainder, 00	  ;port00 used for outputting Quotient and Remainder to LEDs
+				   CONSTANT Current_State,      01	  ;port01 used for outputting current state info (Done (QD), Compute (QC), Initial (QI), and Done) to LEDs
+;**************************************************************************************
+; Special Register usage
+;**************************************************************************************
+  				  ;NAMEREG Not used here
+;**************************************************************************************
+;MAIN PROGRAM
+;**************************************************************************************
+				   ;Control Signal Format in s4 {6'b000000, Start, Ack}
+		   
+	state_initial: OUTPUTK 00000010'b, Current_State 	; Indicating Current State as Initial State (QI)
+				   INPUT s0, Dividend_Divisor			; Register s0 holds Dividend(X), Divisor(Y)					  
+				   LOAD s2,s0							; Make a copy of XY in Register s2
+				   AND s0,0F                    		; Extracting Divisor using mask 00001111 to get 0Y in s0
+				   AND s2,F0				        	; Extracting Divident using mask 11110000 to get X0 in s2
+				   SR0 s2								; 0 >> XXXX 0000 -> 0XXX X000  Right shift Operation
+				   SR0 s2								; 0 >> 0XXX X000 -> 00XX XX00
+				   SR0 s2								; 0 >> 00XX XX00 -> 000X XXX0
+				   SR0 s2		                		; 0 >> 000X XXX0 -> 0000 XXXX - s2 has value 0X
+				   LOAD s9,00							; Quotient Counter
+				   OUTPUT s2, Quotient_Remainder		; Sending out initial Quotient and Remainder (Dividend(X)) to fabric logic
+				   INPUT s4, Control_signal				; Load the Control Signal Information into register s4
+				   AND s4, 00000010'b					; Check to see if Start Control Signal is set using 00000010'b Mask
+				   JUMP Z, state_initial		 		; Jump back to state_initial		   				   
+				   JUMP state_compute					; Jump to Compute State if Start is pressed with s2 holding Divident and s0 holding Divisor
+
+;***************************************************************************************
+;Compute State (Divider Sequence)
+;****************************************************************************************					
+	state_compute: OUTPUTK 00000100'b, Current_State  	; Indicating Current State as Compute State	(QC)
+				   OUTPUT s2, Quotient_Remainder		; Sending out Quotient and Remainder (Dividend(X)) to fabric logic
+				   COMPARE s2, s0						; Compare Dividend and Divisor to check if Dividend is smaller than Divisor
+				   JUMP C, state_done					; If Dividend is smaller, jump to Done State (QD)
+				   SUB s2, s0							; Subtract Divisor from Dividend
+				   ADD s9, 10							; Increment Quotient after each repetitive Subtraction by adding 0001_0000
+				   JUMP state_compute					; If Dividend is not smaller, stay in Compute State (QC)
+;****************************************************************************************
+;Done State
+;****************************************************************************************
+	state_done:	   OUTPUTK 00001001'b, Current_State	; Indicating Current State as Done State and also the Done signal (QD, Done)	   
+				   OR  s2, s9
+				   OUTPUT s2, Quotient_Remainder 		; s2 format would be QQQQ_RRRR
+				   INPUT s4, Control_signal				; Load the Control Signal Information into register s4
+				   COMPARE s4, 00000001'b				; Check to see if ACK is received
+				   JUMP Z, state_initial				; Jump to state_initial if ACK is received
+				   JUMP state_done						; Stay in Done State till ACK comes
+;**************************************************************************************
+;Interrupt Vector
+;**************************************************************************************
+                   ;Not used here
+                   ;ADDRESS 3FF
+			
+                      
