@@ -82,7 +82,7 @@ module divider_top		(
 	reg [26:0]	DIV_CLK;
 // SSD (Seven Segment Display)
 	reg [3:0]	SSD;
-	wire [3:0]	SSD3, SSD2, SSD1, SSD0;
+	wire [3:0]	SSD7, SSD6, SSD5, SSD4, SSD3, SSD2, SSD1, SSD0;
 	reg [7:0]  	SSD_CATHODES;
 
 
@@ -216,7 +216,7 @@ begin
 			Quotient <= out_port;
 		end
 		
-		else if(port_id[1:0] == 2'b01)begin
+		else if(port_id[1:0] == 2'b11)begin
 			Remainder <= out_port;
 		end
 	end
@@ -225,7 +225,7 @@ begin
 	if (k_write_strobe == 1'b1) 
 	begin
 		// Write to output_port at port address 01
-		if (port_id[0]  == 1'b1) 
+		if (port_id[1:0]  == 2'b01) 
 		begin
 			Done <= out_port[0];
 			Qi <= out_port[1];
@@ -252,7 +252,6 @@ end
 	assign SSD1 = Quotient;
 	assign SSD0 = Remainder;
 
-
 	// need a scan clk for the seven segment display 
 	
 	// 100 MHz / 2^18 = 381.5 cycles/sec ==> frequency of DIV_CLK[17]
@@ -274,14 +273,18 @@ end
 	//  DIV_CLK[19]       |___________|           |___________|
 	//
 
-	assign ssdscan_clk = DIV_CLK[19:18];
-	assign An0	= !(~(ssdscan_clk[1]) && ~(ssdscan_clk[0]));  // when ssdscan_clk = 00
-	assign An1	= !(~(ssdscan_clk[1]) &&  (ssdscan_clk[0]));  // when ssdscan_clk = 01
-	assign An2	=  !((ssdscan_clk[1]) && ~(ssdscan_clk[0]));  // when ssdscan_clk = 10
-	assign An3	=  !((ssdscan_clk[1]) &&  (ssdscan_clk[0]));  // when ssdscan_clk = 11
-	// Turn off another 4 anodes
-	assign {An7, An6, An5, An4} = 4'b1111;
-	
+		// Adapted for 8-bit design
+		assign ssdscan_clk = DIV_CLK[19:17];	// use three bits, bit indices obtained from above diagram
+
+		// assess all possible bit ccombinations and assign for all 8 anodes
+		assign An0	= !(~(ssdscan_clk[2]) && ~(ssdscan_clk[1]) && ~(ssdscan_clk[0]));	// when ssdscan_clk = 000
+		assign An1	= !(~(ssdscan_clk[2]) && ~(ssdscan_clk[1]) && (ssdscan_clk[0]));	// when ssdscan_clk = 001
+		assign An2	= !(~(ssdscan_clk[2]) && (ssdscan_clk[1]) && ~(ssdscan_clk[0]));	// when ssdscan_clk = 010
+		assign An3	= !(~(ssdscan_clk[2]) && (ssdscan_clk[1]) && (ssdscan_clk[0]));		// when ssdscan_clk = 011
+		assign An4  = !((ssdscan_clk[2]) && ~(ssdscan_clk[1]) && ~(ssdscan_clk[0]));	// when ssdscan_clk = 100
+		assign An5  = !((ssdscan_clk[2]) && ~(ssdscan_clk[1]) && (ssdscan_clk[0]));		// when ssdscan_clk = 101
+		assign An6  = !((ssdscan_clk[2]) && (ssdscan_clk[1]) && ~(ssdscan_clk[0]));		// when ssdscan_clk = 110
+		assign An7  = !((ssdscan_clk[2]) && (ssdscan_clk[1]) && (ssdscan_clk[0]));		// when ssdscan_clk = 111
 	
 	always @ (ssdscan_clk, SSD0, SSD1, SSD2, SSD3)
 	begin : SSD_SCAN_OUT
